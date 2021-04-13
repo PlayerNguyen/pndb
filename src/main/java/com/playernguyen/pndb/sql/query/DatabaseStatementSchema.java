@@ -2,7 +2,9 @@ package com.playernguyen.pndb.sql.query;
 
 public enum DatabaseStatementSchema {
 
-    SELECT("SELECT %select_columns% FROM %table% %condition% %order%");
+    SELECT("SELECT %select_columns% FROM %table% %criteria% %order%"),
+
+    ;
 
     private final String template;
 

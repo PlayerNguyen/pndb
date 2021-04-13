@@ -6,28 +6,34 @@ import com.playernguyen.pndb.sql.hoster.DatabaseHoster;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DatabaseQueryBuilder {
+
     private DatabaseStatementSchema schema;
     /**
      * Statement is a unique string to order sql to execute a command. (irreplaceable and unique)
      */
-    private String command;
-    private String table;
-    private String conditions;
+    private final Map<String, String> replacementValue = new HashMap<>();
 
     private final DatabaseAdaptor adaptor;
 
+    /**
+     * Constructor with adaptor
+     *
+     * @param adaptor an adaptor to create a hook which connect to the database server
+     */
     public DatabaseQueryBuilder(DatabaseAdaptor adaptor) {
         this.adaptor = adaptor;
     }
 
+    /**
+     * Constructor with hoster parameter
+     *
+     * @param hoster a hoster parameter, use to get an adaptor by build.
+     */
     public DatabaseQueryBuilder(DatabaseHoster hoster) {
         this.adaptor = DatabaseAdaptorBuilder.newInstance().hoster(hoster).build();
     }
@@ -40,138 +46,136 @@ public class DatabaseQueryBuilder {
         return new DatabaseQueryBuilder(hoster);
     }
 
-    /**
-     * Set a target to interactively table.
-     *
-     * @param table a table to interact.
-     * @return a current builder class.
-     */
-    public DatabaseQueryBuilder table(@NotNull String table) {
-        this.table = table;
-        return this;
-    }
+    // ---------- SELECT -------------- //
 
     /**
-     * Set a custom command, a head (begin) order in SQL Statement.
+     * Assign a select command for this builder.
      *
-     * @param command a command to set
-     * @return a current builder class.
+     * @param table   a table to select.
+     * @param columns a column list to select, if empty is '*'.
+     * @return the current query builder.
      */
-    public DatabaseQueryBuilder command(@NotNull String command) {
-        this.command = command;
-        return this;
-    }
+    public DatabaseQueryBuilder select(@NotNull String table, String... columns) {
+        // valid schema first
+        this.schemaEmptyValid();
 
-    /**
-     * Build a select query, call this method will dispatch a select into statement.
-     *
-     * @param columns a column that you want to select.
-     * @return a current builder class.
-     * @throws IllegalStateException if a command was not null. Prevent a override command
-     */
-    public DatabaseQueryBuilder select(String... columns) {
-        // if a statement was not null
-        this.schemaIsNotEmptyValid();
+        // unless exist, set the schema
+        this.schema = DatabaseStatementSchema.SELECT;
 
-        // build a new string list and process column data
-        StringBuilder statementBuilder = new StringBuilder();
-        statementBuilder.append("SELECT ");
-
-        // if no columns was detected, select all columns
+        // target the column
+        StringBuilder columnSelection = new StringBuilder();
         if (columns.length == 0) {
-            statementBuilder.append("*");
-        }
+            columnSelection.append("*");
+        } else {
+            for (int i = 0; i < columns.length; i++) {
+                String column = columns[i];
+                columnSelection.append(column);
 
-        // otherwise, iterate thru a list and append column into a list
-        Iterator<String> iterator = Arrays.stream(columns).iterator();
-        while (iterator.hasNext()) {
-            statementBuilder.append(iterator.next());
-
-            if (iterator.hasNext()) {
-                statementBuilder.append(", ");
+                if (i < column.length() - 1) {
+                    columnSelection.append(", ");
+                }
             }
         }
-        // distinct
-        statementBuilder.append(" FROM %table% ");
+        this.replacementValue.put("%select_columns%", columnSelection.toString());
+        this.replacementValue.put("%table%", table);
 
-        // dispatch to the command variable
-        this.command = statementBuilder.toString();
         return this;
     }
 
-    public DatabaseQueryBuilder where(String criteria) {
-        // if criteria was not null, dispatch into condition
-        if (!criteria.equals("")) {
-            this.conditions = " WHERE " + criteria;
+    /**
+     * Assign to select with all columns in database.
+     *
+     * @param table a table to select.
+     * @return the current query builder.
+     */
+    public DatabaseQueryBuilder selectAll(@NotNull String table) {
+        return this.select(table, "*");
+    }
+
+    // ------------------ Criteria ------------------- //
+
+    public DatabaseQueryBuilder criteria(@NotNull String rawCriteria) {
+        this.replacementValue.put("%criteria%", "WHERE " + rawCriteria);
+        return this;
+    }
+
+    public DatabaseQueryBuilder criteria(@NotNull CriteriaBuilder criteriaBuilder) {
+        this.replacementValue.put("%criteria%", "WHERE " + criteriaBuilder.build());
+        return this;
+    }
+    // ---------------------------------------------- //
+
+    // ----------------- Order -----------------------//
+
+    public DatabaseQueryBuilder order(@NotNull String rawOrder) {
+        this.replacementValue.put("%order%", rawOrder);
+        return this;
+    }
+
+    public DatabaseQueryBuilder order(@NotNull OrderBuilder orderBuilder) {
+        return this.order(orderBuilder.build());
+    }
+
+    /**
+     * Generate order by a field, this method will call {@link #order(String)}.
+     * @param field an order field to generate.
+     * @return this current database query builder class.
+     */
+    public DatabaseQueryBuilder order(@NotNull OrderField... field) {
+        return this.order(OrderBuilder.fromFields(field).build());
+    }
+
+    // ---------------------------------------------- //
+
+    /**
+     * Check if the schema variable is empty or not. If the schema was not empty, throw {@link IllegalStateException}
+     *
+     * @throws IllegalStateException whether the schema was not empty
+     */
+    private void schemaEmptyValid() {
+        if (schema != null) {
+            throw new IllegalStateException("Overriding schema (another command).");
         }
-        return this;
     }
 
+    /**
+     * Generate a query.
+     *
+     * @return a generated query.
+     */
     public String build() {
-        // if statement was null,
-        if (command == null) {
-            throw new NullPointerException("`statement` must not be null");
+        // if schema not found
+        if (schema == null) {
+            throw new IllegalStateException("schema not found (no command)");
         }
 
-        String builtString = command + " " + ((conditions != null) ? conditions : "");
-        if (table == null) {
-            throw new NullPointerException("table cannot be null");
+        String templateBuilder = schema.getTemplate();
+        for (Map.Entry<String, String> replacementEntry : replacementValue.entrySet()) {
+            templateBuilder = templateBuilder.replaceAll(replacementEntry.getKey(), replacementEntry.getValue());
         }
-        return builtString.replaceAll("%table%", this.table);
+
+        // criteria can be null
+        if (!replacementValue.containsKey("%criteria%")) {
+            templateBuilder = templateBuilder.replaceAll("%criteria%", "");
+        }
+
+        // order, too
+        if (!replacementValue.containsKey("%order%")) {
+            templateBuilder = templateBuilder.replaceAll("%order%", "");
+        }
+        return templateBuilder.trim();
     }
 
-    public PreparedStatement prepare(Object... objects) throws SQLException {
+    /**
+     * Prepare a {@link PreparedStatement} for execute by using adaptor.
+     *
+     * @param objects an object list to replace
+     * @return a prepared statement
+     * @throws SQLException an sql exception
+     * @see java.sql.Connection#prepareStatement(String)
+     */
+    public PreparedStatement buildStatement(Object... objects) throws SQLException {
         return this.adaptor.prepareStatement(build(), objects);
-    }
-
-    public ResultSet executeQuery(Object... objects) throws SQLException {
-        return this.prepare(objects).executeQuery();
-    }
-
-    private void schemaIsNotEmptyValid() {
-        if (this.schema != null) {
-            throw new IllegalStateException("A schema variable cannot be override.");
-        }
-    }
-
-    public static class CriteriaBuilder {
-        private final List<String> stringList = new ArrayList<>();
-
-        public CriteriaBuilder() {
-        }
-
-        public CriteriaBuilder of(String name) {
-            stringList.add(name + " = ?");
-            return this;
-        }
-
-        public CriteriaBuilder and() {
-            stringList
-                    .add(" AND ");
-            return this;
-        }
-
-        public CriteriaBuilder or() {
-            stringList
-                    .add(" OR ");
-            return this;
-        }
-
-        public String build() {
-            // generate new builder
-            StringBuilder builder = new StringBuilder();
-            // iterate all criteria and put it all
-            for (String stringCriteria : stringList) {
-                builder.append(stringCriteria);
-            }
-            // then, return
-            return builder.toString();
-        }
-
-        @Override
-        public String toString() {
-            return build();
-        }
     }
 
 }

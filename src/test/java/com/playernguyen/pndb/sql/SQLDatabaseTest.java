@@ -6,7 +6,7 @@ import com.playernguyen.pndb.sql.hoster.DatabaseHoster;
 import com.playernguyen.pndb.sql.hoster.DatabaseHosterBuilder;
 import com.playernguyen.pndb.sql.mysql.DatabaseHosterMySQL;
 import com.playernguyen.pndb.sql.mysql.DatabaseOptionsMySQL;
-import com.playernguyen.pndb.sql.query.DatabaseQueryBuilder;
+import com.playernguyen.pndb.sql.query.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -28,10 +28,19 @@ public class SQLDatabaseTest {
             "opteco",
             "useSSL=false"
     );
+
     DatabaseHoster hoster = new DatabaseHosterMySQL(options);
 
-    List<String> randomProductList = Arrays.asList("car", "rover", "computer", "intel core i3", "intel 14ghz", "range rover"
-            , "iPhone", "iPad", "Airpods Pro");
+    List<String> randomProductList = Arrays.asList("car",
+            "rover",
+            "computer",
+            "intel core i3",
+            "intel 14ghz",
+            "range rover"
+            , "iPhone",
+            "iPad",
+            "Airpods Pro"
+    );
 
     @Test
     public void openConnectionTest() throws SQLException {
@@ -48,11 +57,12 @@ public class SQLDatabaseTest {
     public void createNewTable() throws SQLException {
 
         try (Connection connection = hoster.connection()) {
-            PreparedStatement preparedStatement = connection.prepareStatement("CREATE TABLE IF NOT EXISTS `product` (" +
-                    "`id` INTEGER(11) NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                    "`product_name` VARCHAR(255) NOT NULL, " +
-                    "`price` VARCHAR(255) NOT NULL" +
-                    ")");
+            PreparedStatement preparedStatement = connection.prepareStatement(
+                    "CREATE TABLE IF NOT EXISTS `product` (" +
+                            "`id` INTEGER(11) NOT NULL AUTO_INCREMENT PRIMARY KEY," +
+                            "`product_name` VARCHAR(255) NOT NULL, " +
+                            "`price` VARCHAR(255) NOT NULL" +
+                            ")");
 
             preparedStatement.executeUpdate();
 
@@ -82,27 +92,93 @@ public class SQLDatabaseTest {
     }
 
     @Test
-    public void queryBuilderTest() throws SQLException {
-        try {
-            ResultSet resultSet = DatabaseQueryBuilder.newInstance(hoster)
-                    .select()
-                    .table("product")
-                    .where(new DatabaseQueryBuilder.CriteriaBuilder()
-                                .of("id")
-                                .and()
-                                .of("product_name")
-                                .build()
-                    )
-                    .executeQuery("9", "car");
+    public void criteriaBuilderTest() {
+        // AND logic
+        // In pair
+        Assertions.assertEquals("name=? AND uuid=?", new CriteriaBuilder().and(CriteriaField.equal("name"), CriteriaField.equal("uuid")).build());
+        // In triage
+        Assertions.assertEquals("uuid<? AND password>? AND address=?",
+                new CriteriaBuilder().and(CriteriaField.lessThan("uuid"), CriteriaField.moreThan("password"), CriteriaField.equal("address")).build());
 
+        // OR logic
+        // Assertions.assertEquals("uuid=? OR username=?", new CriteriaBuilder().or("uuid", "username").build());
+
+    }
+
+    @Test
+    public void selectAProduct() throws SQLException {
+        try (PreparedStatement statement = new DatabaseQueryBuilder(hoster)
+                .selectAll("product")
+                .criteria(CriteriaBuilder.newInstance().and(CriteriaField.moreThan("id"), CriteriaField.lessThanOrEqual("id")))
+                .buildStatement(1, 5)) {
+            ResultSet resultSet = statement.executeQuery();
+            // iterate
             while (resultSet.next()) {
-                System.out.println(resultSet.getObject(1));
-                System.out.println(resultSet.getObject(2));
-                System.out.println(resultSet.getObject(3));
+                System.out.println(resultSet.getObject("product_name"));
             }
-        } catch (IllegalStateException e) {
-            e.printStackTrace();
         }
+    }
+
+    @Test
+    public void createOrder() throws SQLException {
+        ResultSet resultSet = DatabaseQueryBuilder
+                .newInstance(hoster)
+                .select("product")
+                .criteria(
+                        CriteriaBuilder.newInstance().newField(CriteriaField.lessThanOrEqual("id"))
+                )
+                .order(
+                        OrderField.createField("id", OrderFieldType.DESC)
+                )
+                .buildStatement(9)
+                .executeQuery();
+
+        while (resultSet.next()) {
+            System.out.println(resultSet.getObject(1));
+            System.out.println(resultSet.getObject(2));
+        }
+    }
+
+    @Test
+    public void queryBuilderTest() throws SQLException {
+        Assertions.assertEquals("SELECT * FROM product WHERE id=?",
+                DatabaseQueryBuilder
+                        .newInstance(hoster)
+                        .select("product")
+                        .criteria(CriteriaBuilder.newInstance().newField(CriteriaField.equal("id")))
+                        .build()
+        );
+
+        Assertions.assertEquals("SELECT * FROM product WHERE id>=? AND id<=?",
+                DatabaseQueryBuilder
+                        .newInstance(hoster)
+                        .select("product")
+                        .criteria(CriteriaBuilder.newInstance().and(CriteriaField.moreThanOrEqual("id"), CriteriaField.lessThanOrEqual("id")))
+                        .build()
+        );
+
+    }
+
+    @Test
+    public void combineQueryAndSQL() throws SQLException {
+        PreparedStatement preparedStatement = DatabaseQueryBuilder
+                .newInstance(hoster)
+                .select("product")
+                .criteria(CriteriaBuilder.newInstance().and(CriteriaField.moreThanOrEqual("id"), CriteriaField.lessThanOrEqual("id")))
+                .buildStatement(1, 9);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        System.out.print("-------\n");
+        int i = 0;
+        while (resultSet.next()) {
+            System.out.printf("%s\t%20s\t%10s%n",
+                    resultSet.getObject("id"),
+                    resultSet.getObject("product_name"),
+                    resultSet.getObject("price"));
+            i++;
+        }
+
+        Assertions.assertEquals(9, i);
     }
 
 }

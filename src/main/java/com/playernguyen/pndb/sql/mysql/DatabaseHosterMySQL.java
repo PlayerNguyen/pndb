@@ -22,7 +22,6 @@ public class DatabaseHosterMySQL implements DatabaseHoster {
         if (!(options instanceof DatabaseOptionsMySQL)) {
             throw new IllegalStateException("using DatabaseOptionsMySQL for MySQL hoster");
         }
-
         this.databaseOptions = options;
 
         // set to config
@@ -31,6 +30,7 @@ public class DatabaseHosterMySQL implements DatabaseHoster {
         hikariConfig.setUsername(this.databaseOptions.get(DatabaseOptionsMySQL.USERNAME));
         hikariConfig.setPassword(this.databaseOptions.get(DatabaseOptionsMySQL.PASSWORD));
         // hikariConfig.setMaximumPoolSize(8);
+
         // create new data source
         this.dataSource = new HikariDataSource(hikariConfig);
     }
@@ -41,7 +41,8 @@ public class DatabaseHosterMySQL implements DatabaseHoster {
 
     private String url() {
         DatabaseOptionsMySQL databaseOptions = (DatabaseOptionsMySQL) getDatabaseOptions();
-        return String.format("jdbc:mysql://%s:%s/%s?%s",
+        return String.format(
+                "jdbc:mysql://%s:%s/%s?%s",
                 databaseOptions.getHost(),
                 databaseOptions.getPort(),
                 databaseOptions.getDatabase(),
