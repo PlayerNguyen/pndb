@@ -1,3 +1,4 @@
+![](https://jitpack.io/v/PlayerNguyen/pndb.svg)](https://jitpack.io/#PlayerNguyen/pndb)
 # Introduction
 ## What is pndb?
 pndb is standing for "Player Nguyen database". This is a utility library to support a 
