@@ -12,6 +12,10 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A builder that contains some simple utilities to build query.
+ * With complex query, please use the custom query instead of this.
+ */
 public class DatabaseQueryBuilder {
 
     private DatabaseStatementSchema schema;
@@ -144,12 +148,10 @@ public class DatabaseQueryBuilder {
         return this;
     }
 
-    // ---------------------------------------------- //
-
     // ----------------- Order -----------------------//
 
-    public DatabaseQueryBuilder order(@NotNull String rawOrder) {
-        this.replacementValue.put("%order%", rawOrder);
+    public DatabaseQueryBuilder order(@NotNull String table) {
+        this.replacementValue.put("%table%", table);
         return this;
     }
 
@@ -165,6 +167,52 @@ public class DatabaseQueryBuilder {
      */
     public DatabaseQueryBuilder order(@NotNull OrderField... field) {
         return this.order(OrderBuilder.fromFields(field).build());
+    }
+
+    // ----------------- Update -----------------------//
+
+    public DatabaseQueryBuilder update(@NotNull String table, String... values) {
+        this.schemaEmptyValid();
+        this.schema = DatabaseStatementSchema.UPDATE;
+
+        StringBuilder data = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            String value = values[i];
+            data.append(value).append("=").append("?");
+            if (i < values.length - 1) {
+                data.append(", ");
+            }
+        }
+
+        this.replacementValue.put("%table%", table);
+        this.replacementValue.put("%values%", data.toString());
+        return this;
+    }
+
+    // ----------------- Delete -----------------------//
+
+    /**
+     * Delete specific rows.<br>
+     * <b>This method will delete a whole table if you have no criteria has been set.</b>
+     *
+     * @param table a table to interact with
+     * @return the current builder class
+     */
+    public DatabaseQueryBuilder delete(@NotNull String table) {
+        this.schemaEmptyValid();
+        this.schema = DatabaseStatementSchema.DELETE;
+
+        this.replacementValue.put("%table%", table);
+        return this;
+    }
+
+    // ----------------- Delete all -----------------------//
+    public DatabaseQueryBuilder deleteAll(@NotNull String table) {
+        this.schemaEmptyValid();
+        this.schema = DatabaseStatementSchema.DELETE_ALL;
+
+        this.replacementValue.put("%table%", table);
+        return this;
     }
 
     // ---------------------------------------------- //
@@ -188,7 +236,7 @@ public class DatabaseQueryBuilder {
     public String build() {
         // if schema not found
         if (schema == null) {
-            throw new IllegalStateException("schema not found (no command)");
+            throw new IllegalStateException("The schema was not found (no command)");
         }
 
         String templateBuilder = schema.getTemplate();
@@ -226,8 +274,26 @@ public class DatabaseQueryBuilder {
 
                 break;
             }
+            case UPDATE: {
+                // criteria can not be null
+                if (!replacementValue.containsKey("%criteria%")) {
+                    throw new NullPointerException(".criteria must be set in update query");
+                }
+                break;
+            }
+            case DELETE: {
+                if (!replacementValue.containsKey("%criteria%")) {
+                    throw new NullPointerException("null .criteria() in DELETE will remove all rows in the table," +
+                            " please use .deleteAll method instead of this.");
+                }
+                break;
+            }
+            case DELETE_ALL: {
+
+                break;
+            }
             default:
-                throw new UnsupportedOperationException("was not defined schema");
+                throw new UnsupportedOperationException("The schema was not defined or unsupported");
         }
 
         return templateBuilder.trim();
@@ -258,6 +324,7 @@ public class DatabaseQueryBuilder {
 
     /**
      * Execute a query by using built query.
+     *
      * @param objects an object parameters.
      * @return an result set.
      * @throws SQLException an sql exception.
@@ -268,7 +335,8 @@ public class DatabaseQueryBuilder {
 
     /**
      * Call a query with caller when execute query.
-     * @param caller a caller
+     *
+     * @param caller  a caller
      * @param objects a parameters
      * @throws Exception an exception that throw whenever caught new exception in execute query
      */
@@ -279,11 +347,11 @@ public class DatabaseQueryBuilder {
     /**
      * Call a caller when go through an iterating object
      *
-     * @param caller a caller to call
+     * @param caller  a caller to call
      * @param objects a parameter object
      * @throws Exception an exception throw whenever caught any exception
      */
-    public void callIterateQuery(Caller<ResultSet> caller, Object ...objects) throws Exception {
+    public void callIterateQuery(Caller<ResultSet> caller, Object... objects) throws Exception {
         ResultSet resultSet = this.adaptor.prepareStatement(build(), objects).executeQuery();
         while (resultSet.next()) {
             caller.call(resultSet);

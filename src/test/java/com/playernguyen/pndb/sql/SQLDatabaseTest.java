@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -82,7 +83,8 @@ public class SQLDatabaseTest {
         DatabaseHoster databaseHoster = DatabaseHosterBuilder.newInstance().options(options).buildMySQL();
         DatabaseAdaptor adaptor = DatabaseAdaptorBuilder.newInstance().hoster(databaseHoster).build();
 
-        try (PreparedStatement preparedStatement = adaptor.prepareStatement("SELECT * FROM `product` WHERE product_name=?", "car")) {
+        try (PreparedStatement preparedStatement =
+                     adaptor.prepareStatement("SELECT * FROM `product` WHERE product_name=?", "car")) {
             ResultSet resultSet = preparedStatement.executeQuery();
             while (resultSet.next()) {
                 System.out.println("resultSet.getObject(1) = " + resultSet.getObject(1));
@@ -200,26 +202,37 @@ public class SQLDatabaseTest {
 
     @Test
     public void onCallWhileIterating() throws Exception {
-        // Manual way
-        Connection connection = hoster.connection();
-        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM `product`");
-        // preparedStatement.setObject(1, "Lamborghini");
-        ResultSet resultSet = preparedStatement.executeQuery();
-        while (resultSet.next()) {
-            System.out.println(resultSet.getObject("id") + " ~ " + resultSet.getObject("product_name"));
-        }
-
+        ArrayList<String> list = new ArrayList<>();
         // pndb way
         DatabaseQueryBuilder.newInstance(hoster)
                 .select("product")
-                .callIterateQuery(
-                        item -> {
-                            System.out.println(
-                                    item.getObject("id") + " ~ " + item.getObject("product_name")
-                            );
-                        },
-                        "Lamborghini"
-                );
+                .criteria(CriteriaBuilder.newInstance().newField(CriteriaField.equal("product_name")))
+                .callIterateQuery(item -> list.add(item.getString("product_name")), "rover");
+
+        System.out.println(list);
+        Assertions.assertEquals(1, list.size());
+    }
+
+    @Test
+    public void update() throws Exception {
+        int updateRows = DatabaseQueryBuilder.newInstance(hoster)
+                .criteria(CriteriaBuilder.newInstance().newField(CriteriaField.equal("id")))
+                .update("product", "product_name")
+                .execUpdate("iPhone 5s", 4);
+        Assertions.assertEquals(1, updateRows);
+        DatabaseQueryBuilder.newInstance(hoster)
+                .select("product")
+                .criteria(CriteriaBuilder.newInstance().newField(CriteriaField.like("product_name")))
+                .callIterateQuery(item -> {
+                    System.out.println("Found " + item.getString(2) + " at id " + item.getObject(1));
+                }, "iPhone 5s");
+    }
+
+    @Test
+    public void delete() throws SQLException {
+        DatabaseQueryBuilder.newInstance(hoster)
+                .delete("product").criteria("id > ?")
+                .execUpdate(21);
     }
 
 }

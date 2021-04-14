@@ -8,15 +8,16 @@ package com.playernguyen.pndb.sql.query;
  *     <li>fieldName = ? (fieldName is equals to ?)</li>
  *     <li>fieldName >= ? (fieldName is more than ?)</li>
  *     <li>fieldName <= ? (fieldName is less than ?)</li>
+ *     <li>fieldName LIKE ? (fieldName is less than ?)</li>
  *     <li>...</li>
  * </ul>
  */
 public class CriteriaField {
     private final String fieldName;
-    private final CriteriaFieldType type;
+    private final CriteriaFieldOperator type;
 
 
-    public CriteriaField(String fieldName, CriteriaFieldType type) {
+    public CriteriaField(String fieldName, CriteriaFieldOperator type) {
         this.fieldName = fieldName;
         this.type = type;
     }
@@ -35,7 +36,7 @@ public class CriteriaField {
      *
      * @return a type
      */
-    public CriteriaFieldType getType() {
+    public CriteriaFieldOperator getType() {
         return type;
     }
 
@@ -46,7 +47,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField equal(String name) {
-        return new CriteriaField(name, CriteriaFieldType.EQUAL);
+        return new CriteriaField(name, CriteriaFieldOperator.EQUAL);
     }
 
     /**
@@ -56,7 +57,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField moreThan(String name) {
-        return new CriteriaField(name, CriteriaFieldType.MORE_THAN);
+        return new CriteriaField(name, CriteriaFieldOperator.MORE_THAN);
     }
 
     /**
@@ -66,7 +67,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField lessThan(String name) {
-        return new CriteriaField(name, CriteriaFieldType.LESS_THAN);
+        return new CriteriaField(name, CriteriaFieldOperator.LESS_THAN);
     }
 
     /**
@@ -76,7 +77,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField moreThanOrEqual(String name) {
-        return new CriteriaField(name, CriteriaFieldType.MORE_OR_EQUAL);
+        return new CriteriaField(name, CriteriaFieldOperator.MORE_OR_EQUAL);
     }
 
     /**
@@ -86,7 +87,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField lessThanOrEqual(String name) {
-        return new CriteriaField(name, CriteriaFieldType.LESS_OR_EQUAL);
+        return new CriteriaField(name, CriteriaFieldOperator.LESS_OR_EQUAL);
     }
 
     /**
@@ -96,7 +97,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField notEqual(String name) {
-        return new CriteriaField(name, CriteriaFieldType.NOT_EQUAL);
+        return new CriteriaField(name, CriteriaFieldOperator.NOT_EQUAL);
     }
 
     /**
@@ -106,7 +107,7 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField notMoreThan(String name) {
-        return new CriteriaField(name, CriteriaFieldType.NOT_MORE_THAN);
+        return new CriteriaField(name, CriteriaFieldOperator.NOT_MORE_THAN);
     }
 
     /**
@@ -116,7 +117,17 @@ public class CriteriaField {
      * @return a criteria field which was just generated
      */
     public static CriteriaField notLessThan(String name) {
-        return new CriteriaField(name, CriteriaFieldType.NOT_LESS_THAN);
+        return new CriteriaField(name, CriteriaFieldOperator.NOT_LESS_THAN);
+    }
+
+    /**
+     * Generate new field with like operator
+     *
+     * @param name a field name
+     * @return a criteria field which was just generated
+     */
+    public static CriteriaField like(String name) {
+        return new CriteriaField(name, CriteriaFieldOperator.LIKE);
     }
 
 }

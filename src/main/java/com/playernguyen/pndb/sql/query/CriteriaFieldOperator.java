@@ -2,7 +2,7 @@ package com.playernguyen.pndb.sql.query;
 
 import org.jetbrains.annotations.NotNull;
 
-public enum CriteriaFieldType {
+public enum CriteriaFieldOperator {
 
     EQUAL("="),
     NOT_EQUAL("!="),
@@ -13,11 +13,13 @@ public enum CriteriaFieldType {
 
     LESS_THAN("<"),
     LESS_OR_EQUAL("<="),
-    NOT_LESS_THAN("!<");
+    NOT_LESS_THAN("!<"),
+    LIKE(" LIKE ")
+    ;
 
     private final String operator;
 
-    CriteriaFieldType(String operator) {
+    CriteriaFieldOperator(String operator) {
         this.operator = operator;
     }
 
