@@ -3,9 +3,11 @@ package com.playernguyen.pndb.sql.query;
 import com.playernguyen.pndb.sql.adapt.DatabaseAdaptor;
 import com.playernguyen.pndb.sql.adapt.DatabaseAdaptorBuilder;
 import com.playernguyen.pndb.sql.hoster.DatabaseHoster;
+import com.playernguyen.pndb.sql.task.Caller;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,7 +19,9 @@ public class DatabaseQueryBuilder {
      * Statement is a unique string to order sql to execute a command. (irreplaceable and unique)
      */
     private final Map<String, String> replacementValue = new HashMap<>();
-
+    /**
+     * An adaptor of database, use to prepare a statement
+     */
     private final DatabaseAdaptor adaptor;
 
     /**
@@ -62,7 +66,7 @@ public class DatabaseQueryBuilder {
         // unless exist, set the schema
         this.schema = DatabaseStatementSchema.SELECT;
 
-        // target the column
+        // set the column
         StringBuilder columnSelection = new StringBuilder();
         if (columns.length == 0) {
             columnSelection.append("*");
@@ -76,6 +80,8 @@ public class DatabaseQueryBuilder {
                 }
             }
         }
+
+        // replace a value
         this.replacementValue.put("%select_columns%", columnSelection.toString());
         this.replacementValue.put("%table%", table);
 
@@ -92,6 +98,40 @@ public class DatabaseQueryBuilder {
         return this.select(table, "*");
     }
 
+    // ---------- INSERT -------------- //
+
+    public DatabaseQueryBuilder insert(@NotNull String table) {
+        // valid the schema
+        this.schemaEmptyValid();
+
+        // set schema to insert
+        this.schema = DatabaseStatementSchema.INSERT;
+
+        // set table name
+        this.replacementValue.put("%table%", table);
+
+        return this;
+    }
+
+    public DatabaseQueryBuilder values(String... fields) {
+        StringBuilder builder = new StringBuilder();
+        StringBuilder dataBuilder = new StringBuilder();
+        // iterate and put field onto it
+        for (int i = 0; i < fields.length; i++) {
+            String field = fields[i];
+
+            builder.append(field);
+            dataBuilder.append("?");
+            if (i < fields.length - 1) {
+                builder.append(", ");
+                dataBuilder.append(", ");
+            }
+        }
+        this.replacementValue.put("%values%", builder.toString());
+        this.replacementValue.put("%values_data%", dataBuilder.toString());
+        return this;
+    }
+
     // ------------------ Criteria ------------------- //
 
     public DatabaseQueryBuilder criteria(@NotNull String rawCriteria) {
@@ -103,6 +143,7 @@ public class DatabaseQueryBuilder {
         this.replacementValue.put("%criteria%", "WHERE " + criteriaBuilder.build());
         return this;
     }
+
     // ---------------------------------------------- //
 
     // ----------------- Order -----------------------//
@@ -118,6 +159,7 @@ public class DatabaseQueryBuilder {
 
     /**
      * Generate order by a field, this method will call {@link #order(String)}.
+     *
      * @param field an order field to generate.
      * @return this current database query builder class.
      */
@@ -150,32 +192,102 @@ public class DatabaseQueryBuilder {
         }
 
         String templateBuilder = schema.getTemplate();
+
         for (Map.Entry<String, String> replacementEntry : replacementValue.entrySet()) {
-            templateBuilder = templateBuilder.replaceAll(replacementEntry.getKey(), replacementEntry.getValue());
+            // whether this is a string
+            templateBuilder = templateBuilder.replaceAll(
+                    replacementEntry.getKey(),
+                    String.valueOf(replacementEntry.getValue())
+            );
         }
 
-        // criteria can be null
-        if (!replacementValue.containsKey("%criteria%")) {
-            templateBuilder = templateBuilder.replaceAll("%criteria%", "");
+        // replace nullable value
+        switch (schema) {
+            case SELECT: {
+                // criteria can be null
+                if (!replacementValue.containsKey("%criteria%")) {
+                    templateBuilder = templateBuilder.replaceAll("%criteria%", "");
+                }
+
+                // order, too
+                if (!replacementValue.containsKey("%order%")) {
+                    templateBuilder = templateBuilder.replaceAll("%order%", "");
+                }
+                break;
+            }
+            case INSERT: {
+                // was not found value
+                if (!replacementValue.containsKey("%values%")) {
+                    throw new NullPointerException("not found %values% definition");
+                }
+
+                templateBuilder = templateBuilder.replace("%value_keys%", replacementValue.get("%values%"));
+                templateBuilder = templateBuilder.replace("%value_values%", replacementValue.get("%values_data%"));
+
+                break;
+            }
+            default:
+                throw new UnsupportedOperationException("was not defined schema");
         }
 
-        // order, too
-        if (!replacementValue.containsKey("%order%")) {
-            templateBuilder = templateBuilder.replaceAll("%order%", "");
-        }
         return templateBuilder.trim();
     }
 
     /**
      * Prepare a {@link PreparedStatement} for execute by using adaptor.
      *
-     * @param objects an object list to replace
+     * @param objects an object parameters
      * @return a prepared statement
      * @throws SQLException an sql exception
      * @see java.sql.Connection#prepareStatement(String)
      */
     public PreparedStatement buildStatement(Object... objects) throws SQLException {
         return this.adaptor.prepareStatement(build(), objects);
+    }
+
+    /**
+     * Execute update query by using current query which was built.
+     *
+     * @param objects an object parameters
+     * @return affected rows
+     * @throws SQLException an sql exception
+     */
+    public int execUpdate(Object... objects) throws SQLException {
+        return this.adaptor.prepareStatement(build(), objects).executeUpdate();
+    }
+
+    /**
+     * Execute a query by using built query.
+     * @param objects an object parameters.
+     * @return an result set.
+     * @throws SQLException an sql exception.
+     */
+    public ResultSet execQuery(Object... objects) throws SQLException {
+        return this.adaptor.prepareStatement(build(), objects).executeQuery();
+    }
+
+    /**
+     * Call a query with caller when execute query.
+     * @param caller a caller
+     * @param objects a parameters
+     * @throws Exception an exception that throw whenever caught new exception in execute query
+     */
+    public void callQuery(Caller<ResultSet> caller, Object... objects) throws Exception {
+        caller.call(this.adaptor.prepareStatement(build(), objects).executeQuery());
+    }
+
+    /**
+     * Call a caller when go through an iterating object
+     *
+     * @param caller a caller to call
+     * @param objects a parameter object
+     * @throws Exception an exception throw whenever caught any exception
+     */
+    public void callIterateQuery(Caller<ResultSet> caller, Object ...objects) throws Exception {
+        ResultSet resultSet = this.adaptor.prepareStatement(build(), objects).executeQuery();
+        while (resultSet.next()) {
+            caller.call(resultSet);
+        }
     }
 
 }

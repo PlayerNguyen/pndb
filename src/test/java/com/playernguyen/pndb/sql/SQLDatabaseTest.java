@@ -181,4 +181,45 @@ public class SQLDatabaseTest {
         Assertions.assertEquals(9, i);
     }
 
+    @Test
+    public void insertData() throws SQLException {
+        DatabaseQueryBuilder.newInstance(hoster)
+                .insert("product")
+                .values("product_name", "price")
+                .execUpdate("Lamborghini", "120000");
+
+        ResultSet resultSet = DatabaseQueryBuilder.newInstance(hoster)
+                .select("product")
+                .criteria(CriteriaBuilder.newInstance().newField(
+                        CriteriaField.equal("product_name")
+                )).execQuery("Lamborghini");
+        while (resultSet.next()) {
+            System.out.println(resultSet.getObject(2));
+        }
+    }
+
+    @Test
+    public void onCallWhileIterating() throws Exception {
+        // Manual way
+        Connection connection = hoster.connection();
+        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM `product`");
+        // preparedStatement.setObject(1, "Lamborghini");
+        ResultSet resultSet = preparedStatement.executeQuery();
+        while (resultSet.next()) {
+            System.out.println(resultSet.getObject("id") + " ~ " + resultSet.getObject("product_name"));
+        }
+
+        // pndb way
+        DatabaseQueryBuilder.newInstance(hoster)
+                .select("product")
+                .callIterateQuery(
+                        item -> {
+                            System.out.println(
+                                    item.getObject("id") + " ~ " + item.getObject("product_name")
+                            );
+                        },
+                        "Lamborghini"
+                );
+    }
+
 }
