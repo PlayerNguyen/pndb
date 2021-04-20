@@ -318,7 +318,7 @@ public class DatabaseQueryBuilder {
      * @return affected rows
      * @throws SQLException an sql exception
      */
-    public int execUpdate(Object... objects) throws SQLException {
+    public int executeUpdate(Object... objects) throws SQLException {
         return this.adaptor.prepareStatement(build(), objects).executeUpdate();
     }
 
@@ -329,7 +329,7 @@ public class DatabaseQueryBuilder {
      * @return an result set.
      * @throws SQLException an sql exception.
      */
-    public ResultSet execQuery(Object... objects) throws SQLException {
+    public ResultSet executeQuery(Object... objects) throws SQLException {
         return this.adaptor.prepareStatement(build(), objects).executeQuery();
     }
 
@@ -356,6 +356,18 @@ public class DatabaseQueryBuilder {
         while (resultSet.next()) {
             caller.call(resultSet);
         }
+    }
+
+    public ResultSet executeCustomQuery(@NotNull String query, Object ... objects) throws SQLException {
+        return this.adaptor.prepareStatement(query, objects).executeQuery();
+    }
+
+    public void callCustomQuery(@NotNull Caller<ResultSet> caller, @NotNull String query, Object... objects) throws Exception {
+        caller.call(executeCustomQuery(query, objects));
+    }
+
+    public int executeCustomUpdate(@NotNull String query, Object... objects) throws SQLException {
+        return this.adaptor.prepareStatement(query, objects).executeUpdate();
     }
 
 }

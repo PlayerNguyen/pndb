@@ -3,7 +3,7 @@ plugins {
 }
 
 group 'org.playernguyen.pndb'
-version '1.0-SNAPSHOT'
+version '1.0.1-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -20,7 +20,7 @@ dependencies {
     // https://mvnrepository.com/artifact/mysql/mysql-connector-java
     implementation group: 'mysql', name: 'mysql-connector-java', version: '8.0.23'
 
-    // implementation hikari connection pool
+    // compile hikari connection pool
     implementation group: 'com.zaxxer', name: 'HikariCP', version: '4.0.3'
 
     // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
@@ -29,7 +29,15 @@ dependencies {
     // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
     testImplementation group: 'org.slf4j', name: 'slf4j-simple', version: '1.6.1'
 
+    // https://mvnrepository.com/artifact/org.xerial/sqlite-jdbc
+    implementation group: 'org.xerial', name: 'sqlite-jdbc', version: '3.34.0'
 
+}
+
+jar {
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
 }
 
 test {
