@@ -6,9 +6,6 @@ import com.playernguyen.pndb.sql.sqlite.DatabaseHosterSQLite;
 import com.playernguyen.pndb.sql.sqlite.DatabaseOptionsSQLite;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
-import java.io.IOException;
-import java.sql.Connection;
 import java.sql.SQLException;
 
 public class SQLiteTest {
@@ -19,10 +16,9 @@ public class SQLiteTest {
             new DatabaseHosterSQLite(new DatabaseOptionsSQLite(FILE_NAME));
 
     @Test
-    public void createHosterWithSQLite() throws IOException, SQLException {
+    public void createHosterWithSQLite() throws SQLException {
         hoster.connection();
     }
-
 
     @Test
     public void createTable() throws SQLException {
